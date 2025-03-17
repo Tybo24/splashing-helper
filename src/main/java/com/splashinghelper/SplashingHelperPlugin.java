@@ -6,6 +6,7 @@ import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.*;
 import net.runelite.api.events.*;
+import net.runelite.api.widgets.ComponentID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.Notifier;
@@ -16,6 +17,7 @@ import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.overlay.infobox.InfoBoxManager;
 
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.time.Duration;
 import java.time.Instant;
@@ -196,7 +198,7 @@ public class SplashingHelperPlugin extends Plugin
 
 	private int getSpellSpriteId()
 	{
-		Widget spellWidget = client.getWidget(WidgetInfo.COMBAT_SPELL_ICON);
+		Widget spellWidget = client.getWidget(ComponentID.COMBAT_SPELL_ICON);
 
 		if (spellWidget != null)
 		{
