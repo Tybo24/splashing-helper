@@ -70,6 +70,7 @@ public class SplashingHelperPlugin extends Plugin
 	protected void startUp() throws Exception
 	{
 		log.info("Splashing helper initialised.");
+		clientThread.invoke(this::setMagicAccuracy);
 	}
 
 	@Override
@@ -137,7 +138,7 @@ public class SplashingHelperPlugin extends Plugin
 		// Calculate the accuracy once logged in
 		if (event.getGameState().equals(GameState.LOGIN_SCREEN))
 		{
-			magicAccuracy = this.getAccuracy();
+			this.setMagicAccuracy();
 		}
 	}
 
@@ -214,7 +215,7 @@ public class SplashingHelperPlugin extends Plugin
 
 	private void setMagicAccuracy()
 	{
-		magicAccuracy = this.getAccuracy();
+		magicAccuracy = this.getMagicAccuracy();
 	}
 
 	@Subscribe
@@ -310,7 +311,7 @@ public class SplashingHelperPlugin extends Plugin
 		return playerEquipment;
 	}
 
-	private double getAccuracy()
+	private double getMagicAccuracy()
 	{
 		Item[] playerEquipment = this.getEquippedItems();
 		double accuracy = 0;
