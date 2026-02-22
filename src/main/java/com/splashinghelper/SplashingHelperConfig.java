@@ -54,7 +54,7 @@ public interface SplashingHelperConfig extends Config
 	@ConfigItem(
 			keyName = "splashingOnly",
 			name = "Only show when splashing",
-			description = "Only show the timer (and send notifications) when your total magic attack bonus is -65 or lower, indicating you are splashing.",
+			description = "Only show the timer when your total magic attack bonus is -65 or lower and 'staff' is in your weapon name, indicating you're splashing.",
 			position = 5
 	)
 	default boolean splashingOnly()
