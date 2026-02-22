@@ -8,14 +8,19 @@ import net.runelite.api.*;
 import net.runelite.api.events.*;
 import net.runelite.api.widgets.ComponentID;
 import net.runelite.api.widgets.Widget;
-import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.Notifier;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
+import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.SpriteManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.overlay.infobox.InfoBoxManager;
+import net.runelite.api.Client;
+import net.runelite.api.Item;
+import net.runelite.api.InventoryID;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -31,15 +36,20 @@ import java.util.List;
 public class SplashingHelperPlugin extends Plugin
 {
 	private static final Duration SPLASHING_DURATION = Duration.ofSeconds(1200);
+	private static final double SPLASH_ACCURACY = -64;
 
 	private boolean notified;
 	private boolean combatTimerExpiredNotify;
 	private boolean active;
 	private Instant combatTimerEndTime;
 	private Actor splashingNPC;
+	private double magicAccuracy;
 
 	@Inject
 	private InfoBoxManager infoBoxManager;
+
+	@Inject
+	private ClientThread clientThread;
 
 	@Inject
 	private Notifier notifier;
@@ -52,6 +62,9 @@ public class SplashingHelperPlugin extends Plugin
 
 	@Inject
 	private SplashingHelperConfig config;
+
+	@Inject
+	private ItemManager itemManager;
 
 	@Override
 	protected void startUp() throws Exception
@@ -68,12 +81,18 @@ public class SplashingHelperPlugin extends Plugin
 		notified = false;
 		combatTimerExpiredNotify = false;
 		splashingNPC = null;
+		magicAccuracy = 0;
 		log.info("Splashing helper shut down.");
 	}
 
 	@Subscribe
 	public void onInteractingChanged(InteractingChanged event)
 	{
+		if (config.accuracyCheck() && !this.shouldSplash())
+		{
+			return;
+		}
+
 		final Actor source = event.getSource();
 		if (source != client.getLocalPlayer())
 		{
@@ -96,6 +115,11 @@ public class SplashingHelperPlugin extends Plugin
 	@Subscribe
 	public void onNpcDespawned(NpcDespawned event)
 	{
+		if (config.accuracyCheck() && !this.shouldSplash())
+		{
+			return;
+		}
+
 		NPC npc = event.getNpc();
 
 		// Check if the despawned NPC is the one you are tracking
@@ -108,9 +132,41 @@ public class SplashingHelperPlugin extends Plugin
 	}
 
 	@Subscribe
+	public void onGameStateChanged(GameStateChanged event)
+	{
+		// Calculate the accuracy once logged in
+		if (event.getGameState().equals(GameState.LOGIN_SCREEN))
+		{
+			magicAccuracy = this.getAccuracy();
+		}
+	}
+
+	@Subscribe
+	public void onConfigChanged(ConfigChanged event)
+	{
+		if (event.getKey().equals("accuracyCheck"))
+		{
+			if (config.accuracyCheck())
+			{
+				clientThread.invoke(this::setMagicAccuracy);
+
+				if (!this.shouldSplash())
+				{
+					this.removeTimer();
+				}
+			}
+		}
+	}
+
+	@Subscribe
 	public void onGameTick(GameTick event)
 	{
 		if (combatTimerEndTime == null)
+		{
+			return;
+		}
+
+		if (config.accuracyCheck() && !this.shouldSplash())
 		{
 			return;
 		}
@@ -141,8 +197,34 @@ public class SplashingHelperPlugin extends Plugin
 	}
 
 	@Subscribe
+	public void onItemContainerChanged(ItemContainerChanged event)
+	{
+		if (config.accuracyCheck())
+		{
+			int containerId = event.getContainerId();
+
+			// Optimisation to only re-calculate this value when the equipment changes
+			// so we aren't running this code every time we need to check the accuracy stat
+			if(containerId == InventoryID.EQUIPMENT.getId())
+			{
+				this.setMagicAccuracy();
+			}
+		}
+	}
+
+	private void setMagicAccuracy()
+	{
+		magicAccuracy = this.getAccuracy();
+	}
+
+	@Subscribe
 	public void onStatChanged(StatChanged event)
 	{
+		if (config.accuracyCheck() && !this.shouldSplash())
+		{
+			return;
+		}
+
 		// Still splashing. Required for a rare scenario which causes active
 		// to be disabled, but I am too lazy to find where that is happening and fix it.
 		// Arguably, tracking by Magic XP gained is better regardless...
@@ -159,7 +241,7 @@ public class SplashingHelperPlugin extends Plugin
 		return configManager.getConfig(SplashingHelperConfig.class);
 	}
 
-	private void sendNotification (NotificationType _notificationType)
+	private void sendNotification(NotificationType _notificationType)
 	{
 		switch (_notificationType)
 		{
@@ -208,9 +290,69 @@ public class SplashingHelperPlugin extends Plugin
 		return SpriteID.SPELL_FIRE_STRIKE;
 	}
 
+	private boolean shouldSplash()
+	{
+		return magicAccuracy <= SPLASH_ACCURACY;
+	}
+
+	private Item[] getEquippedItems()
+	{
+		Item[] playerEquipment;
+		if (client.getItemContainer(InventoryID.EQUIPMENT) != null )
+		{
+			playerEquipment = client.getItemContainer(InventoryID.EQUIPMENT).getItems();
+		}
+		else
+		{
+			playerEquipment = null;
+		}
+
+		return playerEquipment;
+	}
+
+	private double getAccuracy()
+	{
+		Item[] playerEquipment = this.getEquippedItems();
+		double accuracy = 0;
+
+		if (playerEquipment != null)
+		{
+			// Get Magic accuracy bonus of each equipped item
+			for (Item equipmentItem: playerEquipment)
+			{
+				if (equipmentItem != null && equipmentItem.getId() != -1)
+				{
+					int equipmentID = equipmentItem.getId();
+
+					if(itemManager.getItemStats(equipmentID) != null)
+					{
+						accuracy += itemManager.getItemStats(equipmentID).getEquipment().getAmagic();
+					}
+				}
+			}
+
+		}
+
+		return accuracy;
+	}
+
 	boolean shouldDisplayTimer()
 	{
-		return active && config.showTimer();
+		boolean ret = false;
+
+		if (config.showTimer())
+		{
+			if (config.accuracyCheck())
+			{
+				ret = active && this.shouldSplash();
+			}
+			else
+			{
+				ret = active;
+			}
+		}
+
+		return ret;
 	}
 
 	private void resetTimer()
@@ -234,7 +376,7 @@ public class SplashingHelperPlugin extends Plugin
 			return;
 		}
 
-        BufferedImage image = spriteManager.getSprite(this.getSpellSpriteId(), 0);
+		BufferedImage image = spriteManager.getSprite(this.getSpellSpriteId(), 0);
 		infoBoxManager.addInfoBox(new CombatTimer(SplashingHelperPlugin.SPLASHING_DURATION, image, this, config));
 	}
 }
