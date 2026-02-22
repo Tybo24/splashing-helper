@@ -50,4 +50,15 @@ public interface SplashingHelperConfig extends Config
 	{
 		return 60;
 	}
+
+	@ConfigItem(
+			keyName = "splashingOnly",
+			name = "Only show when splashing",
+			description = "Only show the timer (and send notifications) when your total magic attack bonus is -65 or lower, indicating you are splashing.",
+			position = 5
+	)
+	default boolean splashingOnly()
+	{
+		return true;
+	}
 }

@@ -12,7 +12,9 @@ import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.Notifier;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.SpriteManager;
+import net.runelite.http.api.item.ItemStats;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.overlay.infobox.InfoBoxManager;
@@ -46,6 +48,9 @@ public class SplashingHelperPlugin extends Plugin
 
 	@Inject
 	private SpriteManager spriteManager;
+
+	@Inject
+	private ItemManager itemManager;
 
 	@Inject
 	private Client client;
@@ -129,12 +134,14 @@ public class SplashingHelperPlugin extends Plugin
 			combatTimerExpiredNotify = false;
         }
 
-		if (Instant.now().isAfter(combatTimerEndTime.minusSeconds(config.notifyExpireBuffer())) && !notified)
+		if (Instant.now().isAfter(combatTimerEndTime.minusSeconds(config.notifyExpireBuffer())) && !notified
+				&& (!config.splashingOnly() || isSplashing()))
 		{
 			this.sendNotification(NotificationType.TIMER_BUFFER);
 		}
 
-		if (Instant.now().isAfter(combatTimerEndTime) && !combatTimerExpiredNotify)
+		if (Instant.now().isAfter(combatTimerEndTime) && !combatTimerExpiredNotify
+				&& (!config.splashingOnly() || isSplashing()))
 		{
 			this.sendNotification(NotificationType.TIMER_EXPIRED);
 		}
@@ -210,7 +217,44 @@ public class SplashingHelperPlugin extends Plugin
 
 	boolean shouldDisplayTimer()
 	{
-		return active && config.showTimer();
+		return active && config.showTimer() && (!config.splashingOnly() || isSplashing());
+	}
+
+	private boolean isSplashing()
+	{
+		ItemContainer equipment = client.getItemContainer(InventoryID.EQUIPMENT);
+		if (equipment == null)
+		{
+			return false;
+		}
+
+		// Must have a staff in the weapon slot (rules out melee/range)
+		Item weapon = equipment.getItem(EquipmentInventorySlot.WEAPON.getSlotIdx());
+		if (weapon == null || weapon.getId() == -1)
+		{
+			return false;
+		}
+		String weaponName = itemManager.getItemComposition(weapon.getId()).getName().toLowerCase();
+		if (!weaponName.contains("staff"))
+		{
+			return false;
+		}
+
+		// Magic attack bonus must be -65 or lower (rules out actual magic setups)
+		int magicAttackBonus = 0;
+		for (Item item : equipment.getItems())
+		{
+			if (item == null || item.getId() == -1)
+			{
+				continue;
+			}
+			ItemStats stats = itemManager.getItemStats(item.getId(), false);
+			if (stats != null && stats.getEquipment() != null)
+			{
+				magicAttackBonus += stats.getEquipment().getAmagic();
+			}
+		}
+		return magicAttackBonus <= -65;
 	}
 
 	private void resetTimer()
