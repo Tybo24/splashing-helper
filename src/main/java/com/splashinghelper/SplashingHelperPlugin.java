@@ -6,6 +6,7 @@ import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.*;
 import net.runelite.api.events.*;
+import net.runelite.api.gameval.VarbitID;
 import net.runelite.api.widgets.ComponentID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.Notifier;
@@ -37,6 +38,7 @@ public class SplashingHelperPlugin extends Plugin
 {
 	private static final Duration SPLASHING_DURATION = Duration.ofSeconds(1200);
 	private static final double SPLASH_ACCURACY = -64;
+	private static final int STAFF_WEAPON_VARBIT = 18;
 
 	private boolean notified;
 	private boolean combatTimerExpiredNotify;
@@ -363,8 +365,15 @@ public class SplashingHelperPlugin extends Plugin
 			return false;
 		}
 
-		// If the weapon's magic accuracy is low, do not perform check. Cursed goblin staff is
-		// accuracy 0 - anything with negative likely isn't a staff in general
+		// If the weapon is not the staff varbit, return false
+		int currentEquippedWeaponTypeVarbit = client.getVarbitValue(VarbitID.COMBAT_WEAPON_CATEGORY);
+		if (currentEquippedWeaponTypeVarbit != STAFF_WEAPON_VARBIT)
+		{
+			return false;
+		}
+
+		// If the weapon's magic accuracy is low, do not perform check. Cursed goblin staff has
+		// 0 accuracy - anything with negative likely isn't a staff in general
 		if (itemManager.getItemStats(weaponId).getEquipment().getAmagic() < 0)
 		{
 			return false;
