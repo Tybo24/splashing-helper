@@ -313,6 +313,11 @@ public class SplashingHelperPlugin extends Plugin
 
 	private double getMagicAccuracy()
 	{
+		if (!checkEquippedWeapon())
+		{
+			return 0;
+		}
+
 		Item[] playerEquipment = this.getEquippedItems();
 		double accuracy = 0;
 
@@ -335,6 +340,37 @@ public class SplashingHelperPlugin extends Plugin
 		}
 
 		return accuracy;
+	}
+
+	private int getEquippedWeapon()
+	{
+		ItemContainer itemContainer = client.getItemContainer(InventoryID.EQUIPMENT);
+		if (itemContainer == null) return 0;
+
+		Item item = itemContainer.getItem(EquipmentInventorySlot.WEAPON.getSlotIdx());
+		if (item == null) return 0;
+
+		return item.getId();
+	}
+
+	private boolean checkEquippedWeapon()
+	{
+		var weaponId = this.getEquippedWeapon();
+
+		// If weapon could not be found then do not perform check - do not expect people to autocast splash
+		if (weaponId == 0)
+		{
+			return false;
+		}
+
+		// If the weapon's magic accuracy is low, do not perform check - do not expect people to be
+		// trying to splash with a high accuracy staff or otherwise
+		if (itemManager.getItemStats(weaponId).getEquipment().getAmagic() < 0)
+		{
+			return false;
+		}
+
+		return true;
 	}
 
 	boolean shouldDisplayTimer()
