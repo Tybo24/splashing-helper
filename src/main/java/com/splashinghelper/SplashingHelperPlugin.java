@@ -357,14 +357,14 @@ public class SplashingHelperPlugin extends Plugin
 	{
 		var weaponId = this.getEquippedWeapon();
 
-		// If weapon could not be found then do not perform check - do not expect people to autocast splash
+		// If weapon could not be found then do not perform check - do not expect people to manual cast splash
 		if (weaponId == 0)
 		{
 			return false;
 		}
 
-		// If the weapon's magic accuracy is low, do not perform check - do not expect people to be
-		// trying to splash with a high accuracy staff or otherwise
+		// If the weapon's magic accuracy is low, do not perform check. Cursed goblin staff is
+		// accuracy 0 - anything with negative likely isn't a staff in general
 		if (itemManager.getItemStats(weaponId).getEquipment().getAmagic() < 0)
 		{
 			return false;
